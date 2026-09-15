@@ -129,7 +129,6 @@ export default function RoutingTab() {
           fullWidth
           min={0}
           max={Number.MAX_SAFE_INTEGER}
-          helperText="Scanner points per request. Default: 5,000,000. 0 = unlimited."
         />
       </Collapse>
 
