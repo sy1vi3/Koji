@@ -123,13 +123,6 @@ export default function RoutingTab() {
       <Collapse in={mode !== 'bootstrap'}>
         <Divider sx={{ my: 2 }} />
         <ListSubheader>Clustering</ListSubheader>
-        <UserTextInput
-          field="point_limit"
-          label="Point Limit"
-          fullWidth
-          min={0}
-          max={Number.MAX_SAFE_INTEGER}
-        />
       </Collapse>
 
       <Collapse in={mode !== 'bootstrap' && calculation_mode === 'S2'}>
@@ -159,6 +152,15 @@ export default function RoutingTab() {
           field="genetic_post_processing"
           label="Genetic Post Processing"
         /> */}
+      </Collapse>
+
+      <Collapse in={mode !== 'bootstrap'}>
+        <UserTextInput
+          field="point_limit"
+          label="Point Limit"
+          min={0}
+          max={Number.MAX_SAFE_INTEGER}
+        />
       </Collapse>
 
       <Divider sx={{ my: 2 }} />
