@@ -16,6 +16,195 @@ pub enum Folder {
     Bootstrap,
 }
 
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+    use crate::routing::join;
+
+    fn shell_plugin(script: &str, split_level: u64) -> Plugin {
+        Plugin {
+            plugin_path: "/bin/sh".into(),
+            interpreter: "/bin/sh".into(),
+            args: vec!["-c".into(), script.into()],
+            plugin: "test-routing".into(),
+            split_level,
+        }
+    }
+
+    fn split_points() -> SingleVec {
+        vec![
+            [33.40, -112.10],
+            [33.40001, -112.10001],
+            [33.50, -112.10],
+            [33.50001, -112.10001],
+            [33.60, -112.10],
+            [33.60001, -112.10001],
+        ]
+    }
+
+    fn assert_same_points(mut actual: SingleVec, mut expected: SingleVec) {
+        let compare =
+            |a: &[f64; 2], b: &[f64; 2]| a[0].total_cmp(&b[0]).then(a[1].total_cmp(&b[1]));
+        actual.sort_by(compare);
+        expected.sort_by(compare);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn routing_preserves_a_single_point() {
+        let plugin = shell_plugin("cat", 0);
+        assert_eq!(
+            plugin.run("33.4,-112.1".into()).unwrap(),
+            vec![[33.4, -112.1]]
+        );
+    }
+
+    #[test]
+    fn routing_removes_a_repeated_closing_point() {
+        let plugin = shell_plugin("cat", 0);
+        assert_eq!(
+            plugin.run("1,2 3,4 1,2".into()).unwrap(),
+            vec![[1., 2.], [3., 4.]]
+        );
+    }
+
+    #[test]
+    fn routing_joins_three_cells_without_losing_points() {
+        let points = split_points();
+        assert_eq!(create_cell_map(&points, 12).len(), 3);
+        let plugin = shell_plugin("cat", 12);
+        let result = plugin.run_multi(&points, Some(join::join)).unwrap();
+        assert_same_points(result, points);
+    }
+
+    #[test]
+    fn routing_sends_all_centroids_to_one_solver() {
+        // Two points per chunk; the join must send all three centroids together.
+        let plugin = shell_plugin(
+            "input=$(cat); set -- $input; test $# -ge 2 || exit 1; printf '%s' \"$input\"",
+            12,
+        );
+        let points = split_points();
+        let result = plugin.run_multi(&points, Some(join::join)).unwrap();
+        assert_same_points(result, points);
+    }
+
+    #[test]
+    fn routing_propagates_a_failed_chunk() {
+        let plugin = shell_plugin(
+            "input=$(cat); case $input in *33.5*) exit 1;; esac; printf '%s' \"$input\"",
+            12,
+        );
+        assert!(plugin.run_multi(&split_points(), Some(join::join)).is_err());
+    }
+
+    #[test]
+    fn routing_propagates_a_failed_centroid_solver() {
+        let plugin = shell_plugin(
+            "input=$(cat); set -- $input; test $# -eq 2 || exit 1; printf '%s' \"$input\"",
+            12,
+        );
+        assert!(plugin.run_multi(&split_points(), Some(join::join)).is_err());
+    }
+
+    #[test]
+    fn routing_honors_the_solved_chunk_order() {
+        let plugin = shell_plugin("awk '{ for (i = NF; i > 0; i--) print $i }'", 12);
+        let chunks = vec![
+            vec![[33.4, -112.1]],
+            vec![[33.5, -112.1]],
+            vec![[33.6, -112.1]],
+        ];
+        let result = join::join(&plugin, chunks.clone()).unwrap();
+        assert_eq!(
+            result,
+            chunks.into_iter().rev().flatten().collect::<SingleVec>()
+        );
+    }
+
+    #[test]
+    fn routing_rejects_missing_or_repeated_centroids() {
+        let chunks = vec![
+            vec![[33.4, -112.1]],
+            vec![[33.5, -112.1]],
+            vec![[33.6, -112.1]],
+        ];
+        for script in [
+            "awk '{ print $1; print $2 }'",
+            "awk '{ print $1; print $1; print $2 }'",
+            "cat >/dev/null; printf '0,0'",
+        ] {
+            assert!(join::join(&shell_plugin(script, 12), chunks.clone()).is_err());
+        }
+    }
+
+    #[test]
+    #[ignore = "requires TSP_TEST_BINARY pointing to a built tsp-mt executable"]
+    fn routing_with_real_tsp_mt() {
+        let executable = std::env::var("TSP_TEST_BINARY").unwrap();
+        let plugin = Plugin {
+            plugin_path: executable.clone(),
+            interpreter: executable,
+            args: vec![
+                "--threads".into(),
+                "1".into(),
+                "--time-limit".into(),
+                "0.01".into(),
+            ],
+            plugin: "tsp-mt".into(),
+            split_level: 12,
+        };
+        for points in [
+            vec![[33.4, -112.1]],
+            split_points(),
+            vec![[33.4, -112.1], [33.5, -112.1], [33.6, -112.1]],
+        ] {
+            let result = plugin.run_multi(&points, Some(join::join)).unwrap();
+            assert_same_points(result, points);
+        }
+    }
+
+    #[test]
+    #[ignore = "requires TSP_TEST_BINARY; runs a 200,000-point split-route integration check"]
+    fn routing_large_route_with_real_tsp_mt() {
+        let executable = std::env::var("TSP_TEST_BINARY").unwrap();
+        let plugin = Plugin {
+            plugin_path: executable.clone(),
+            interpreter: executable,
+            args: vec![
+                "--threads".into(),
+                "1".into(),
+                "--time-limit".into(),
+                "0.01".into(),
+            ],
+            plugin: "tsp-mt".into(),
+            split_level: 12,
+        };
+        // Roughly 1,100 km² near Phoenix, with distinct points in many S2 cells.
+        let points: SingleVec = (0..500)
+            .flat_map(|lat| {
+                (0..400).map(move |lon| {
+                    [
+                        33.3 + lat as f64 * 0.3 / 499.,
+                        -112.3 + lon as f64 * 0.36 / 399.,
+                    ]
+                })
+            })
+            .collect();
+        let cells = create_cell_map(&points, 12).len();
+        assert!(cells > 100);
+        let start = Instant::now();
+        let result = plugin.run_multi(&points, Some(join::join)).unwrap();
+        eprintln!(
+            "Routed {} points across {} cells in {:?}",
+            points.len(),
+            cells,
+            start.elapsed()
+        );
+        assert_same_points(result, points);
+    }
+}
+
 impl Display for Folder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -35,7 +224,7 @@ pub struct Plugin {
     pub split_level: u64,
 }
 
-pub type JoinFunction = fn(&Plugin, Vec<SingleVec>) -> SingleVec;
+pub type JoinFunction = fn(&Plugin, Vec<SingleVec>) -> io::Result<SingleVec>;
 
 trait ParseCoord {
     fn parse_next_coord(&mut self) -> Option<f64>;
@@ -155,7 +344,7 @@ impl Plugin {
         joiner: Option<T>,
     ) -> Result<SingleVec, std::io::Error>
     where
-        T: Fn(&Self, Vec<SingleVec>) -> SingleVec,
+        T: Fn(&Self, Vec<SingleVec>) -> io::Result<SingleVec>,
     {
         let handlers = if self.split_level == 0 {
             vec![self.run(utils::stringify_points(&points))?]
@@ -164,12 +353,12 @@ impl Plugin {
                 .into_values()
                 .collect::<Vec<SingleVec>>()
                 .into_par_iter()
-                .filter_map(|x| self.run(utils::stringify_points(&x)).ok())
-                .collect()
+                .map(|x| self.run(utils::stringify_points(&x)))
+                .collect::<io::Result<Vec<_>>>()?
         };
 
         if let Some(joiner) = joiner {
-            Ok(joiner(self, handlers))
+            joiner(self, handlers)
         } else {
             Ok(handlers.into_iter().flatten().collect())
         }
@@ -266,12 +455,9 @@ impl Plugin {
             }
         }
 
-        if let Some(first) = results.first() {
-            if let Some(last) = results.last() {
-                if first == last {
-                    results.pop();
-                }
-            }
+        // A single point is a valid route, not a repeated closing point.
+        if results.len() > 1 && results.first() == results.last() {
+            results.pop();
         }
 
         if !invalid.is_empty() {

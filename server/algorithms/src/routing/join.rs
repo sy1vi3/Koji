@@ -1,15 +1,16 @@
-use crate::plugin::{JoinFunction, Plugin};
+use crate::plugin::Plugin;
 use crate::utils;
 use geo::{Distance, Haversine, Point};
 use model::api::{point_array::PointArray, single_vec::SingleVec};
 use s2::cellid::CellID;
 use s2::latlng::LatLng;
 use std::collections::HashMap;
+use std::io;
 use std::time::Instant;
 
-pub fn join(plugin: &Plugin, input: Vec<SingleVec>) -> SingleVec {
+pub fn join(plugin: &Plugin, input: Vec<SingleVec>) -> io::Result<SingleVec> {
     if plugin.split_level == 0 || input.len() < 3 {
-        return input.into_iter().flatten().collect();
+        return Ok(input.into_iter().flatten().collect());
     }
     let time = Instant::now();
     let mut point_map = HashMap::<u64, SingleVec>::new();
@@ -21,20 +22,41 @@ pub fn join(plugin: &Plugin, input: Vec<SingleVec>) -> SingleVec {
     };
 
     let mut centroids = vec![];
-    for points in input.iter() {
+    for points in input {
+        if points.is_empty() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Cannot join an empty route",
+            ));
+        }
         let center = utils::centroid(&points);
         centroids.push(center);
-        point_map.insert(get_cell_id(center), points.clone());
+        if point_map.insert(get_cell_id(center), points).is_some() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Route centroids share an S2 cell",
+            ));
+        }
     }
-    let clusters: Vec<SingleVec> = plugin
-        .run_multi::<JoinFunction>(&centroids, None)
-        .unwrap_or(vec![])
-        .into_iter()
-        .filter_map(|c| {
-            let hash = get_cell_id(c);
-            point_map.remove(&hash)
-        })
-        .collect();
+    // Solve the order of ALL chunks in one pass. Splitting these centroids
+    // again produces singleton inputs instead of a route between chunks.
+    let ordered_centroids = plugin.run(utils::stringify_points(&centroids))?;
+    let mut clusters = Vec::with_capacity(centroids.len());
+    for center in ordered_centroids {
+        let points = point_map.remove(&get_cell_id(center)).ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Solver returned an unknown or repeated route centroid",
+            )
+        })?;
+        clusters.push(points);
+    }
+    if !point_map.is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "Solver omitted route centroids",
+        ));
+    }
 
     let mut final_routes: SingleVec = vec![];
 
@@ -68,5 +90,5 @@ pub fn join(plugin: &Plugin, input: Vec<SingleVec>) -> SingleVec {
         final_routes.len(),
         time.elapsed().as_millis()
     );
-    final_routes
+    Ok(final_routes)
 }

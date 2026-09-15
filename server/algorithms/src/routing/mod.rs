@@ -9,7 +9,7 @@ use crate::{
     utils,
 };
 
-mod join;
+pub(crate) mod join;
 pub mod sorting;
 // pub mod vrp;
 
