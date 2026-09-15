@@ -2,6 +2,7 @@ import * as React from 'react'
 import { usePersist } from '@hooks/usePersist'
 import { MapContainer, TileLayer } from 'react-leaflet'
 import { ATTRIBUTION } from '@assets/constants'
+import { resolveTileServer, TILE_ATTRIBUTION } from '@services/tiles'
 
 interface Props {
   children?: React.ReactNode
@@ -25,7 +26,7 @@ const Map = React.forwardRef<L.Map, Props>(
     ref,
   ) => {
     const { location, zoom } = usePersist.getState()
-    const tileServer = usePersist((s) => s.tileServer)
+    const tileServer = usePersist((s) => resolveTileServer(s.tileServer))
 
     return (
       <MapContainer
@@ -43,7 +44,7 @@ const Map = React.forwardRef<L.Map, Props>(
         {!renderOwnTileLayer && (
           <TileLayer
             key={tileServer}
-            attribution={ATTRIBUTION}
+            attribution={`${ATTRIBUTION} | ${TILE_ATTRIBUTION}`}
             url={tileServer}
           />
         )}

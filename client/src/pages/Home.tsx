@@ -11,10 +11,11 @@ import { shallow } from 'zustand/shallow'
 import ThemeToggle from '@components/ThemeToggle'
 import { usePersist } from '@hooks/usePersist'
 import { ATTRIBUTION } from '@assets/constants'
+import { resolveTileServer, TILE_ATTRIBUTION } from '@services/tiles'
 
 export default function Home() {
-  const [darkMode, location, zoom, tileServer] = usePersist(
-    (s) => [s.darkMode, s.location, s.zoom, s.tileServer],
+  const [location, zoom, tileServer] = usePersist(
+    (s) => [s.location, s.zoom, resolveTileServer(s.tileServer)],
     shallow,
   )
 
@@ -33,13 +34,9 @@ export default function Home() {
       }}
     >
       <TileLayer
-        key={darkMode.toString()}
-        url={
-          darkMode
-            ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-            : tileServer ||
-              'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}{r}.png'
-        }
+        key={tileServer}
+        url={tileServer}
+        attribution={TILE_ATTRIBUTION}
       />
       <Box sx={{ position: 'absolute', top: 10, right: 10, zIndex: 1000 }}>
         <ThemeToggle />

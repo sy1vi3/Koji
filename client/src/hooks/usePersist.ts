@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { DEFAULT_TILE_SERVER } from '@services/tiles'
 import type { TabOption, Category, ConversionOptions } from '@assets/types'
 import {
   GEOMETRY_CONVERSION_TYPES,
@@ -110,8 +111,7 @@ export const usePersist = create(
         { distance: 1500, color: '#FEA71D' },
       ],
       scaleMarkers: false,
-      tileServer:
-        'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}{r}.png',
+      tileServer: DEFAULT_TILE_SERVER,
       tth: 'All',
       spawnpoint: false,
       gym: true,
