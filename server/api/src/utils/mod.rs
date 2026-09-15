@@ -3,14 +3,14 @@ use super::*;
 use geo::Point;
 use geojson::{Geometry, Value};
 use model::{
+    KojiDb, ScannerType,
     api::{
+        BBox, ToCollection,
         args::{ApiQueryArgs, SpawnpointTth, UnknownId},
         single_vec::SingleVec,
-        BBox, ToCollection,
     },
-    db::{area, geofence, gym, instance, pokestop, spawnpoint, station, GenericData},
+    db::{GenericData, area, geofence, gym, instance, pokestop, spawnpoint, station},
     error::ModelError,
-    KojiDb, ScannerType,
 };
 
 pub mod auth;
@@ -98,19 +98,43 @@ pub async fn points_from_area(
     conn: &KojiDb,
     last_seen: u32,
     tth: SpawnpointTth,
+    point_limit: u64,
 ) -> Result<Vec<GenericData>, DbErr> {
     if !area.features.is_empty() {
         match category.as_str() {
-            "gym" => gym::Query::area(&conn.scanner, &area, last_seen).await,
-            "pokestop" => pokestop::Query::area(&conn.scanner, &area, last_seen).await,
-            "station" => station::Query::area(&conn.scanner, &area, last_seen).await,
-            "spawnpoint" => spawnpoint::Query::area(&conn.scanner, &area, last_seen, tth).await,
+            "gym" => gym::Query::area(&conn.scanner, &area, last_seen, point_limit).await,
+            "pokestop" => pokestop::Query::area(&conn.scanner, &area, last_seen, point_limit).await,
+            "station" => station::Query::area(&conn.scanner, &area, last_seen, point_limit).await,
+            "spawnpoint" => {
+                spawnpoint::Query::area(&conn.scanner, &area, last_seen, tth, point_limit).await
+            }
             "fort" => {
-                // "fort" aggregates gym + pokestop + station results
-                let gyms = gym::Query::area(&conn.scanner, &area, last_seen).await?;
-                let pokestops = pokestop::Query::area(&conn.scanner, &area, last_seen).await?;
-                let stations = station::Query::area(&conn.scanner, &area, last_seen).await?;
-                Ok(gyms.into_iter().chain(pokestops.into_iter()).chain(stations.into_iter()).collect())
+                // Share one budget across categories instead of returning up to 3x the limit.
+                let mut points =
+                    gym::Query::area(&conn.scanner, &area, last_seen, point_limit).await?;
+                if point_limit != 0 && points.len() as u64 >= point_limit {
+                    return Ok(points);
+                }
+                let remaining = if point_limit == 0 {
+                    0
+                } else {
+                    point_limit - points.len() as u64
+                };
+                points.extend(
+                    pokestop::Query::area(&conn.scanner, &area, last_seen, remaining).await?,
+                );
+                if point_limit != 0 && points.len() as u64 >= point_limit {
+                    return Ok(points);
+                }
+                let remaining = if point_limit == 0 {
+                    0
+                } else {
+                    point_limit - points.len() as u64
+                };
+                points.extend(
+                    station::Query::area(&conn.scanner, &area, last_seen, remaining).await?,
+                );
+                Ok(points)
             }
             _ => Err(DbErr::Custom("Invalid Category".to_string())),
         }

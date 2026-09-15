@@ -134,6 +134,7 @@ export async function clusteringRouting({
     s2_level,
     s2_size,
     max_clusters,
+    point_limit,
     routing_args,
     clustering_args,
     bootstrapping_args,
@@ -248,6 +249,7 @@ export async function clusteringRouting({
             sort_by,
             tth,
             max_clusters,
+            point_limit,
             calculation_mode,
             s2_level,
             s2_size,
@@ -330,7 +332,7 @@ export async function getMarkers(
   category: Category,
   tth: UsePersist['tth'],
 ): Promise<PixiMarker[]> {
-  const { data, last_seen: raw } = usePersist.getState()
+  const { data, last_seen: raw, point_limit } = usePersist.getState()
   const { geojson, bounds } = useStatic.getState()
   if (data === 'area' && !geojson.features.length) return []
   const last_seen = typeof raw === 'string' ? new Date(raw) : raw
@@ -354,6 +356,7 @@ export async function getMarkers(
         ...(data === 'bound' && bounds),
         last_seen: Math.floor((last_seen?.getTime?.() || 0) / 1000),
         tth,
+        point_limit,
       }),
     })
     if (!res.ok) {

@@ -76,6 +76,7 @@ export interface UsePersist {
   s2_level: typeof S2_CELL_LEVELS[number]
   s2_size: typeof BOOTSTRAP_LEVELS[number]
   max_clusters: number
+  point_limit: number
   routing_args: string
   clustering_args: string
   bootstrapping_args: string
@@ -135,6 +136,7 @@ export const usePersist = create(
       s2_level: 15,
       s2_size: 9,
       max_clusters: 0,
+      point_limit: 5000000,
       min_points: 3,
       save_to_db: false,
       save_to_scanner: false,

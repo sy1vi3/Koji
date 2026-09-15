@@ -31,13 +31,14 @@ impl Query {
         conn: &DatabaseConnection,
         last_seen: u32,
         tth: SpawnpointTth,
+        point_limit: u64,
     ) -> Result<Vec<GenericData>, DbErr> {
         let items = spawnpoint::Entity::find()
             .select_only()
             .column(spawnpoint::Column::Lat)
             .column(spawnpoint::Column::Lon)
             .column(spawnpoint::Column::DespawnSec)
-            .limit(2_000_000)
+            .limit((point_limit != 0).then_some(point_limit))
             .filter(spawnpoint::Column::LastSeen.gt(last_seen))
             .filter(match tth {
                 SpawnpointTth::All => Column::Id.is_not_null(),
@@ -54,6 +55,7 @@ impl Query {
         conn: &DatabaseConnection,
         payload: &api::args::BoundsArg,
     ) -> Result<Vec<GenericData>, DbErr> {
+        let point_limit = api::args::resolve_point_limit(payload.point_limit);
         let items = spawnpoint::Entity::find()
             .select_only()
             .column(spawnpoint::Column::Lat)
@@ -67,7 +69,7 @@ impl Query {
                 SpawnpointTth::Known => Column::DespawnSec.is_not_null(),
                 SpawnpointTth::Unknown => Column::DespawnSec.is_null(),
             })
-            .limit(2_000_000)
+            .limit((point_limit != 0).then_some(point_limit))
             .into_model::<Spawnpoint>()
             .all(conn)
             .await?;
@@ -79,8 +81,9 @@ impl Query {
         area: &FeatureCollection,
         last_seen: u32,
         tth: SpawnpointTth,
+        point_limit: u64,
     ) -> Result<Vec<Spawnpoint>, DbErr> {
-        spawnpoint::Entity::find()
+        let rows = spawnpoint::Entity::find()
             .from_raw_sql(Statement::from_sql_and_values(
                 DbBackend::MySql,
                 format!(
@@ -97,8 +100,9 @@ impl Query {
                 vec![],
             ))
             .into_model::<Spawnpoint>()
-            .all(conn)
-            .await
+            .stream(conn)
+            .await?;
+        utils::normalize::collect_in_area(rows, area, point_limit).await
     }
 
     pub async fn area(
@@ -106,9 +110,10 @@ impl Query {
         area: &FeatureCollection,
         last_seen: u32,
         tth: SpawnpointTth,
+        point_limit: u64,
     ) -> Result<Vec<GenericData>, DbErr> {
-        let items = Self::query_area(conn, area, last_seen, tth).await?;
-        Ok(utils::normalize::spawnpoint_filtered(items, area))
+        let items = Self::query_area(conn, area, last_seen, tth, point_limit).await?;
+        Ok(utils::normalize::spawnpoint(items))
     }
 
     pub async fn stats(
@@ -117,8 +122,8 @@ impl Query {
         last_seen: u32,
         tth: SpawnpointTth,
     ) -> Result<Total, DbErr> {
-        let items = Self::query_area(conn, area, last_seen, tth).await?;
-        let total = utils::normalize::count_in_area(&items, area);
+        let items = Self::query_area(conn, area, last_seen, tth, 0).await?;
+        let total = items.len() as i32;
         Ok(Total { total })
     }
 }

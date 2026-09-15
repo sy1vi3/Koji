@@ -5,6 +5,13 @@ use crate::{
     utils::{get_enum, get_enum_by_geometry_string},
 };
 
+pub const DEFAULT_POINT_LIMIT: u64 = 5_000_000;
+
+/// Zero explicitly disables the scanner point limit.
+pub fn resolve_point_limit(value: Option<u64>) -> u64 {
+    value.unwrap_or(DEFAULT_POINT_LIMIT)
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Auth {
     pub password: String,
@@ -154,6 +161,7 @@ pub struct BoundsArg {
     pub last_seen: Option<u32>,
     pub ids: Option<Vec<String>>,
     pub tth: Option<SpawnpointTth>,
+    pub point_limit: Option<u64>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -263,6 +271,9 @@ pub struct Args {
     ///
     /// Default: [USIZE::MAX]
     pub max_clusters: Option<usize>,
+    /// Maximum scanner points per request, after geofence filtering.
+    /// Default: 5,000,000. Zero means unlimited. Does not limit explicit data_points.
+    pub point_limit: Option<u64>,
     /// Whether to use the fast or slow clustering algorithm
     ///
     /// Default: `true`
@@ -397,6 +408,7 @@ pub struct ArgsUnwrapped {
     pub cluster_mode: ClusterMode,
     pub cluster_split_level: u64,
     pub max_clusters: usize,
+    pub point_limit: u64,
     pub clusters: single_vec::SingleVec,
     pub data_points: single_vec::SingleVec,
     pub devices: usize,
@@ -467,6 +479,7 @@ impl Args {
             cluster_mode,
             cluster_split_level,
             max_clusters,
+            point_limit,
             s2_size,
             clusters,
             data_points,
@@ -561,6 +574,7 @@ impl Args {
             usize::MAX
         };
         let center_clusters = center_clusters.unwrap_or(false);
+        let point_limit = resolve_point_limit(point_limit);
         let genetic_post_processing = genetic_post_processing.unwrap_or_default();
         let clusters = resolve_data_points(clusters);
         let last_seen = last_seen.unwrap_or(0);
@@ -597,6 +611,7 @@ impl Args {
             cluster_mode,
             clusters,
             max_clusters,
+            point_limit,
             cluster_split_level,
             s2_level,
             calculation_mode,

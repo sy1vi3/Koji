@@ -169,6 +169,7 @@ async fn cluster(
         last_seen,
         sort_by,
         tth,
+        point_limit,
         route_split_level,
         routing_args,
         calculation_mode,
@@ -221,7 +222,7 @@ async fn cluster(
         .map_err(actix_web::error::ErrorInternalServerError)?;
 
     let data_points = if data_points.is_empty() {
-        utils::points_from_area(&area, &category, &conn, last_seen, tth)
+        utils::points_from_area(&area, &category, &conn, last_seen, tth, point_limit)
             .await
             .map_err(actix_web::error::ErrorInternalServerError)?
             .to_single_vec()
@@ -416,6 +417,7 @@ async fn route_stats_category(
         parent,
         last_seen,
         tth,
+        point_limit,
         min_points,
         ..
     } = payload.into_inner().init(Some("route-stats"));
@@ -428,7 +430,7 @@ async fn route_stats_category(
     let data_points = if !data_points.is_empty() {
         data_points
     } else {
-        utils::points_from_area(&area, &category, &conn, last_seen, tth)
+        utils::points_from_area(&area, &category, &conn, last_seen, tth, point_limit)
             .await
             .map_err(actix_web::error::ErrorInternalServerError)?
             .to_single_vec()

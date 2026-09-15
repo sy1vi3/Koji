@@ -223,6 +223,13 @@ Accepted forms resolve into a list of points (`[lat, lon]`):
       <Table.Td>`0` becomes unlimited.</Table.Td>
     </Table.Tr>
     <Table.Tr>
+      <Table.Td>`point_limit`</Table.Td>
+      <Table.Td>integer</Table.Td>
+      <Table.Td>No</Table.Td>
+      <Table.Td>`5000000`</Table.Td>
+      <Table.Td>Maximum scanner points per request; `0` means unlimited. Geofence filtering happens before the limit. Shared across categories for `fort`. Does not truncate explicit `data_points`.</Table.Td>
+    </Table.Tr>
+    <Table.Tr>
       <Table.Td>`radius`</Table.Td>
       <Table.Td>number</Table.Td>
       <Table.Td>No</Table.Td>

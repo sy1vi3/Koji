@@ -120,15 +120,24 @@ export default function RoutingTab() {
         />
       </Collapse>
 
-      <Collapse in={mode !== 'bootstrap' && calculation_mode === 'S2'}>
+      <Collapse in={mode !== 'bootstrap'}>
         <Divider sx={{ my: 2 }} />
         <ListSubheader>Clustering</ListSubheader>
+        <UserTextInput
+          field="point_limit"
+          label="Point Limit"
+          fullWidth
+          min={0}
+          max={Number.MAX_SAFE_INTEGER}
+          helperText="Scanner points per request. Default: 5,000,000. 0 = unlimited."
+        />
+      </Collapse>
+
+      <Collapse in={mode !== 'bootstrap' && calculation_mode === 'S2'}>
         <UserTextInput field="min_points" />
       </Collapse>
 
       <Collapse in={mode !== 'bootstrap' && calculation_mode === 'Radius'}>
-        <Divider sx={{ my: 2 }} />
-        <ListSubheader>Clustering</ListSubheader>
         <UserTextInput field="min_points" />
         <MultiOptionList
           field="cluster_mode"

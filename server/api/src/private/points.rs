@@ -3,9 +3,9 @@ use crate::utils::response::Response;
 use super::*;
 
 use model::{
+    KojiDb,
     api::args::{Args, ArgsUnwrapped, BoundsArg},
     db::{gym, pokestop, spawnpoint, station},
-    KojiDb,
 };
 
 #[post("/all/{category}")]
@@ -14,7 +14,12 @@ async fn all(
     category: actix_web::web::Path<String>,
     payload: web::Json<Args>,
 ) -> Result<HttpResponse, Error> {
-    let ArgsUnwrapped { last_seen, tth, .. } = payload.into_inner().init(Some("all_data"));
+    let ArgsUnwrapped {
+        last_seen,
+        tth,
+        point_limit,
+        ..
+    } = payload.into_inner().init(Some("all_data"));
     let category = category.into_inner();
 
     log::info!(
@@ -24,10 +29,10 @@ async fn all(
     );
 
     let all_data = match category.as_str() {
-        "gym" => gym::Query::all(&conn.scanner, last_seen).await,
-        "pokestop" => pokestop::Query::all(&conn.scanner, last_seen).await,
-        "station" => station::Query::all(&conn.scanner, last_seen).await,
-        "spawnpoint" => spawnpoint::Query::all(&conn.scanner, last_seen, tth).await,
+        "gym" => gym::Query::all(&conn.scanner, last_seen, point_limit).await,
+        "pokestop" => pokestop::Query::all(&conn.scanner, last_seen, point_limit).await,
+        "station" => station::Query::all(&conn.scanner, last_seen, point_limit).await,
+        "spawnpoint" => spawnpoint::Query::all(&conn.scanner, last_seen, tth, point_limit).await,
         _ => Err(DbErr::Custom("invalid_category".to_string())),
     }
     .map_err(actix_web::error::ErrorInternalServerError)?;
@@ -77,6 +82,7 @@ async fn by_area(
         instance,
         last_seen,
         tth,
+        point_limit,
         ..
     } = payload.into_inner().init(None);
 
@@ -95,7 +101,7 @@ async fn by_area(
         .await
         .map_err(actix_web::error::ErrorInternalServerError)?;
 
-    let area_data = utils::points_from_area(&area, &category, &conn, last_seen, tth)
+    let area_data = utils::points_from_area(&area, &category, &conn, last_seen, tth, point_limit)
         .await
         .map_err(actix_web::error::ErrorInternalServerError)?;
 

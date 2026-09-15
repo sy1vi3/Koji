@@ -52,7 +52,11 @@ fn now_secs() -> u32 {
 pub struct Query;
 
 impl Query {
-    pub async fn all(conn: &DatabaseConnection, last_seen: u32) -> Result<Vec<GenericData>, DbErr> {
+    pub async fn all(
+        conn: &DatabaseConnection,
+        last_seen: u32,
+        point_limit: u64,
+    ) -> Result<Vec<GenericData>, DbErr> {
         let now = now_secs();
         let items = Entity::find()
             .select_only()
@@ -61,7 +65,7 @@ impl Query {
             .filter(Column::Updated.gt(last_seen))
             .filter(Column::IsInactive.eq(false))
             .filter(Column::EndTime.gt(now))
-            .limit(2_000_000)
+            .limit((point_limit != 0).then_some(point_limit))
             .into_model::<api::point_struct::PointStruct>()
             .all(conn)
             .await?;
@@ -73,6 +77,7 @@ impl Query {
         payload: &api::args::BoundsArg,
     ) -> Result<Vec<GenericData>, DbErr> {
         let now = now_secs();
+        let point_limit = api::args::resolve_point_limit(payload.point_limit);
         let items = Entity::find()
             .select_only()
             .column(Column::Lat)
@@ -82,7 +87,7 @@ impl Query {
             .filter(Column::Updated.gt(payload.last_seen.unwrap_or(0)))
             .filter(Column::IsInactive.eq(false))
             .filter(Column::EndTime.gt(now))
-            .limit(2_000_000)
+            .limit((point_limit != 0).then_some(point_limit))
             .into_model::<api::point_struct::PointStruct>()
             .all(conn)
             .await?;
@@ -93,6 +98,7 @@ impl Query {
         conn: &DatabaseConnection,
         area: &FeatureCollection,
         last_seen: u32,
+        point_limit: u64,
     ) -> Result<Vec<GenericData>, DbErr> {
         let now = now_secs();
         let items = Entity::find()
@@ -102,9 +108,10 @@ impl Query {
                 vec![],
             ))
             .into_model::<api::point_struct::PointStruct>()
-            .all(conn)
+            .stream(conn)
             .await?;
-        Ok(utils::normalize::fort_filtered(items, area, "s"))
+        let items = utils::normalize::collect_in_area(items, area, point_limit).await?;
+        Ok(utils::normalize::fort(items, "s"))
     }
 
     pub async fn stats(

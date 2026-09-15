@@ -15,6 +15,7 @@ export default function UserTextInput<
   helperText,
   endAdornment,
   disabled = false,
+  fullWidth = false,
   min,
   max,
 }: {
@@ -22,6 +23,7 @@ export default function UserTextInput<
   label?: string
   helperText?: string
   disabled?: boolean
+  fullWidth?: boolean
   endAdornment?: string
   min?: U extends number ? number : never
   max?: U extends number ? number : never
@@ -33,7 +35,7 @@ export default function UserTextInput<
 
   return (
     <ListItem disabled={disabled}>
-      {isNumber && <ListItemText primary={finalLabel} />}
+      {isNumber && !fullWidth && <ListItemText primary={finalLabel} />}
       <TextField
         name={field}
         value={value || ''}
@@ -45,13 +47,14 @@ export default function UserTextInput<
             [field]: isNumber ? +target.value : target.value,
           })
         }
-        label={isNumber ? undefined : finalLabel}
-        sx={{ width: isNumber ? '35%' : '100%' }}
+        label={isNumber && !fullWidth ? undefined : finalLabel}
+        sx={{ width: isNumber && !fullWidth ? '35%' : '100%' }}
         multiline={!isNumber}
         inputProps={{ min: min || 0, max: max || 9999 }}
         InputProps={{ endAdornment }}
         disabled={disabled}
         helperText={helperText}
+        FormHelperTextProps={{ sx: { whiteSpace: 'normal' } }}
       />
     </ListItem>
   )

@@ -24,6 +24,7 @@ export default function Markers({ category }: { category: Category }) {
   const last_seen = usePersist((s) => s.last_seen)
   const pokestopRange = usePersist((s) => s.pokestopRange)
   const tth = usePersist((s) => s.tth)
+  const pointLimit = usePersist((s) => s.point_limit)
   const colorByGeoHash = usePersist((s) => s.colorByGeohash)
   const geohashPrecision = usePersist((s) => s.geohashPrecision)
 
@@ -75,6 +76,7 @@ export default function Markers({ category }: { category: Category }) {
     focused,
     pokestopRange,
     tth,
+    pointLimit,
   ])
 
   const memoSetFocused = React.useCallback(
