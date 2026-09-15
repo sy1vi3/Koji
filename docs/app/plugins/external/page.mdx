@@ -19,7 +19,7 @@ High-performance multi-threaded TSP solver for geographic coordinates, designed 
 ```bash
 git clone https://github.com/TurtIeSocks/tsp-mt.git
 cd tsp-mt
-cargo build --release --features fetch-lkh
+cargo build --release --locked
 ```
 
 #### Copy the built binary into Kōji's routing plugins directory:
@@ -33,10 +33,10 @@ cp target/release/tsp-mt /path/to/Koji/server/algorithms/src/routing/plugins/
 - Set `sort_by` to `tsp-mt`.
 - Add any extra CLI flags in `routing_args` as needed.
 
-#### If you did not embed LKH at build time, pass the LKH executable path:
-
-- Example: `routing_args="--lkh-exe /path/to/LKH"`
+The current solver is self-contained Rust and does not require LKH. For example, use `routing_args="--time-limit 30 --threads 4"` to set a time budget and worker count.
 
 </Steps>
 
 <Callout type="info">To use it with Dragonite, you must replace the existing `tsp` plugin. Delete the old one and rename `tsp-mt` to `tsp`.</Callout>
+
+Docker builds from this repository already bundle `tsp-mt` under the name `tsp`; use `sort_by="tsp"`. See [building the Docker image](/setup/docker#building-from-source) for ARM64 instructions.

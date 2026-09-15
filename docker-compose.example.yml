@@ -47,7 +47,9 @@ services:
     #extra_hosts:
     #  - "host.docker.internal:host-gateway"
     volumes:
-      - './routing:/algorithms/src/routing/plugins'
+      # Optional: this replaces the bundled tsp-mt plugin (named tsp).
+      # Only enable after placing your own executable plugins in ./routing.
+      # - './routing:/algorithms/src/routing/plugins'
       - './bootstrap:/algorithms/src/bootstrap/plugins'
       - './clustering:/algorithms/src/clustering/plugins'
 networks:

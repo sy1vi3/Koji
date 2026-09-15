@@ -114,6 +114,44 @@ docker-compose down && docker-compose up -d
 
 </Steps>
 
+## Building from source
+
+The Dockerfile builds both Kōji and [tsp-mt](https://github.com/TurtIeSocks/tsp-mt) for the requested platform. The bundled `tsp` routing plugin uses tsp-mt instead of OR-Tools. Its source revision is pinned by `TSP_MT_REV` in the Dockerfile and its Cargo dependencies are locked.
+
+From the repository root, build and load an ARM64 image:
+
+```bash
+docker buildx build --platform linux/arm64 --load -t koji:arm64-tsp-mt .
+```
+
+Docker must support native ARM64 builds or ARM64 emulation. The GitHub Actions workflow configures QEMU and builds both `linux/amd64` and `linux/arm64`.
+
+In your Compose service, use the locally built image:
+
+```yaml
+services:
+  koji:
+    image: koji:arm64-tsp-mt
+    platform: linux/arm64
+```
+
+Keep your existing database, environment, and port settings. Start it with `docker compose up -d`.
+
+Select `tsp` as the routing algorithm (`sort_by="tsp"` in API requests). Optional `routing_args` use tsp-mt flags, for example `--time-limit 30 --threads 4`; remove any old OR-Tools or LKH flags. Set `route_split_level=0` to let one tsp-mt process handle the entire route; if Kōji splits routes, each process has its own thread count and time budget.
+
+Do not mount an empty host directory over `/algorithms/src/routing/plugins`: that hides the bundled `tsp` executable. The routing volume in the example Compose file is optional for this reason.
+
+To smoke-test the bundled solver without database access:
+
+```bash
+printf '40,-74 40.01,-74 40.01,-74.01 40,-74.01\n' | \
+  docker run --rm -i --platform linux/arm64 \
+  --entrypoint /algorithms/src/routing/plugins/tsp \
+  koji:arm64-tsp-mt --time-limit 1 --threads 2
+```
+
+The output should contain the four input coordinates, one per line, in route order.
+
 ## Checking out other PRs
 
 To check out other PRs/branches, you can change your `docker-compose.override.yml` file like so:
